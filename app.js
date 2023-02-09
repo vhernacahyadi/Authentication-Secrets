@@ -8,6 +8,8 @@ const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const encrypt = require("mongoose-encryption");
 const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const app = express();
 
@@ -40,7 +42,6 @@ async function main(){
     mongoose.connect('mongodb://localhost:27017/userDB', {useNewUrlParser: true});
 }
 
-
 // Create Schema and Model for User Collection in MongoDB
 const userSchema = new mongoose.Schema({
     email: String,
@@ -56,25 +57,38 @@ const User = mongoose.model('User', userSchema);
 
 ///////////////// REGISTER ROUTE //////////////////
 app.post("/register", function(req, res){
-    const newUser = new User({
-        email: req.body.username,
-        password: md5(req.body.password)
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash){
+        
+        // For MD5:
+        // const newUser = new User({
+        //     email: req.body.username,
+        //     password: md5(req.body.password)
+        // });
+    
+        // bcrypt
+        const newUser = new User({
+            email: req.body.username,
+            password: hash
+        });
+
+        // redirect to secrets.ejs if user already register
+        newUser.save(function(err){
+            if(err)
+                console.log(err);
+            else
+                res.render("secrets");
+        });
     });
 
-    // redirect to secrets.ejs if user already register
-    newUser.save(function(err){
-        if(err)
-            console.log(err);
-        else
-            res.render("secrets");
-    });    
+        
 })
 
 
 //////////////// LOGIN ROUTE //////////////////////
 app.post("/login", function(req, res){
     const email = req.body.username;
-    const password = md5(req.body.password);
+    const password = req.body.password;
+    //const password = md5(req.body.password);
 
     User.findOne(
         { email: email }, 
@@ -83,8 +97,14 @@ app.post("/login", function(req, res){
                 console.log(err)
             else {
                 if(foundUser){
-                    if(foundUser.password === password)
-                        res.render("secrets");
+                    // For md5 and non hash:
+                    // if(foundUser.password === password)
+                    //     res.render("secrets");
+
+                    bcrypt.compare(password, foundUser.password, function(err, result){
+                        if(result)
+                            res.render("secrets");
+                    })
                 }
             }
                 
